@@ -22,7 +22,7 @@ const COOK_TIMES = [
   { label: "45 min", value: 45 },
   { label: "1 hour", value: 60 },
 ];
-const RESULT_COUNTS = [5, 10, 15, 20];
+const RESULT_COUNTS = [5, 10, 15, 20, 30, 50];
 const INTOLERANCES = ["Dairy", "Egg", "Gluten", "Peanut", "Seafood", "Shellfish", "Soy", "Tree Nut", "Wheat"];
 
 const DEFAULT_FILTERS = {

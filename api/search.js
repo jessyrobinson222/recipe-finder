@@ -22,8 +22,8 @@ export default async function handler(req, res) {
     // ingredients provided, ranked by how many they use.
     const findParams = new URLSearchParams({
       ingredients: allIngredients,
-      number: String(number * 2), // fetch extra so we have room to filter
-      ranking: "1",               // maximise used ingredients
+      number: String(Math.min(number * 2, 100)), // Spoonacular max is 100
+      ranking: "1",
       ignorePantry: "true",
       apiKey: key,
     });
