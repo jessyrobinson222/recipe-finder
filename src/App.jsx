@@ -12,7 +12,6 @@ function persistSaved(list) {
 }
 
 // ─── Filter config ────────────────────────────────────────────────────────────
-const DIETS = ["Vegetarian", "Vegan", "Gluten Free", "Ketogenic", "Paleo", "Whole30", "Pescetarian", "Primal"];
 const CUISINES = ["Italian", "Asian", "Mexican", "Mediterranean", "American", "French", "Indian", "Japanese", "Chinese", "Thai", "Greek", "Spanish", "Middle Eastern"];
 const MEAL_TYPES = ["Main Course", "Starter", "Salad", "Soup", "Snack", "Breakfast", "Dessert"];
 const COOK_TIMES = [
@@ -22,68 +21,44 @@ const COOK_TIMES = [
   { label: "45 min", value: 45 },
   { label: "1 hour", value: 60 },
 ];
-const RESULT_COUNTS = [5, 10, 15, 20, 30, 50];
-const INTOLERANCES = ["Dairy", "Egg", "Gluten", "Peanut", "Seafood", "Shellfish", "Soy", "Tree Nut", "Wheat"];
-
+const RESULT_COUNTS = [5, 10, 15, 20];
 const DEFAULT_FILTERS = {
-  diet: null,
-  cuisine: null,
-  type: null,
-  maxReadyTime: null,
-  number: 10,
-  intolerances: [],
+  cuisine: null, type: null, maxReadyTime: null,
+  number: 10, minRating: 4.5, minReviews: 100,
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function getCalories(recipe) {
-  const cal = (recipe.nutrition?.nutrients || []).find(n => n.name === "Calories");
-  return cal ? Math.round(cal.amount) : null;
+function countActiveFilters(f) {
+  return [f.cuisine, f.type, f.maxReadyTime].filter(Boolean).length +
+    (f.number !== 10 ? 1 : 0) +
+    (f.minRating !== 4.5 ? 1 : 0) +
+    (f.minReviews !== 100 ? 1 : 0);
 }
-function getDomain(url) {
-  try { return new URL(url).hostname.replace("www.", ""); }
-  catch { return null; }
-}
-// Spoonacular score is 0–100; convert to 0–5 stars
-function getStars(score) {
-  return score ? Math.round((score / 20) * 2) / 2 : null; // nearest 0.5
-}
-function StarRating({ score, likes }) {
-  const stars = getStars(score);
-  if (!stars) return null;
-  const full = Math.floor(stars);
-  const half = stars % 1 >= 0.5;
+
+// ─── Stars display ────────────────────────────────────────────────────────────
+function StarRating({ rating, count }) {
+  if (!rating) return null;
+  const full = Math.floor(rating);
+  const half = rating % 1 >= 0.5;
   const empty = 5 - full - (half ? 1 : 0);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 12 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
       <span style={{ color: "#f59e0b", fontSize: 15, letterSpacing: 1 }}>
         {"★".repeat(full)}{half ? "½" : ""}{"☆".repeat(empty)}
       </span>
       <span style={{ fontSize: 13, color: "#888", fontFamily: "sans-serif" }}>
-        {stars.toFixed(1)}
-        {likes > 0 && <span style={{ marginLeft: 5 }}>· {likes.toLocaleString()} likes</span>}
+        {rating.toFixed(1)}
+        {count > 0 && <span> · {count.toLocaleString()} reviews</span>}
       </span>
     </div>
   );
-}
-function countActiveFilters(f) {
-  return [f.diet, f.cuisine, f.type, f.maxReadyTime].filter(Boolean).length
-    + (f.intolerances?.length || 0)
-    + (f.number !== 10 ? 1 : 0);
 }
 
 // ─── FilterPanel ──────────────────────────────────────────────────────────────
 function FilterPanel({ filters, onChange }) {
   const set = (key, val) => onChange({ ...filters, [key]: val });
-  const toggle = (key, val) => {
-    const cur = filters[key];
-    onChange({ ...filters, [key]: cur === val ? null : val });
-  };
-  const toggleIntolerance = (val) => {
-    const cur = filters.intolerances || [];
-    onChange({ ...filters, intolerances: cur.includes(val) ? cur.filter(i => i !== val) : [...cur, val] });
-  };
+  const toggle = (key, val) => onChange({ ...filters, [key]: filters[key] === val ? null : val });
 
-  const chipStyle = (active) => ({
+  const chip = (active) => ({
     padding: "6px 14px", borderRadius: 20, fontSize: 13, cursor: "pointer",
     border: `2px solid ${active ? "#c0392b" : "#e0d8d0"}`,
     background: active ? "#c0392b" : "#fff",
@@ -91,7 +66,7 @@ function FilterPanel({ filters, onChange }) {
     fontFamily: "inherit", transition: "all 0.12s", whiteSpace: "nowrap"
   });
 
-  const section = (title) => (
+  const sectionLabel = (title) => (
     <div style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, marginTop: 16 }}>
       {title}
     </div>
@@ -99,84 +74,110 @@ function FilterPanel({ filters, onChange }) {
 
   return (
     <div style={{ background: "#fff", border: "2px solid #e8e0d5", borderRadius: 12, padding: "16px 18px", marginBottom: 14 }}>
-      {/* Diet */}
-      {section("Diet")}
+
+      {/* Min rating */}
+      {sectionLabel("Minimum Rating")}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {DIETS.map(d => (
-          <button key={d} style={chipStyle(filters.diet === d.toLowerCase())}
-            onClick={() => toggle("diet", d.toLowerCase())}>{d}</button>
+        {[4.0, 4.3, 4.5, 4.7, 4.9].map(r => (
+          <button key={r} style={chip(filters.minRating === r)}
+            onClick={() => set("minRating", r)}>{"★".repeat(Math.floor(r))} {r.toFixed(1)}+</button>
+        ))}
+      </div>
+
+      {/* Min reviews */}
+      {sectionLabel("Minimum Reviews")}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {[10, 50, 100, 500, 1000].map(n => (
+          <button key={n} style={chip(filters.minReviews === n)}
+            onClick={() => set("minReviews", n)}>{n.toLocaleString()}+</button>
         ))}
       </div>
 
       {/* Cuisine */}
-      {section("Cuisine")}
+      {sectionLabel("Cuisine")}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {CUISINES.map(c => (
-          <button key={c} style={chipStyle(filters.cuisine === c.toLowerCase())}
+          <button key={c} style={chip(filters.cuisine === c.toLowerCase())}
             onClick={() => toggle("cuisine", c.toLowerCase())}>{c}</button>
         ))}
       </div>
 
       {/* Meal type */}
-      {section("Meal Type")}
+      {sectionLabel("Meal Type")}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {MEAL_TYPES.map(t => (
-          <button key={t} style={chipStyle(filters.type === t.toLowerCase().replace(" ", "+"))}
+          <button key={t} style={chip(filters.type === t.toLowerCase().replace(" ", "+"))}
             onClick={() => toggle("type", t.toLowerCase().replace(" ", "+"))}>{t}</button>
         ))}
       </div>
 
       {/* Cook time */}
-      {section("Max Cook Time")}
+      {sectionLabel("Max Cook Time")}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {COOK_TIMES.map(({ label, value }) => (
-          <button key={label} style={chipStyle(filters.maxReadyTime === value)}
+          <button key={label} style={chip(filters.maxReadyTime === value)}
             onClick={() => set("maxReadyTime", value)}>{label}</button>
         ))}
       </div>
 
-      {/* Intolerances */}
-      {section("Intolerances / Allergies")}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {INTOLERANCES.map(i => (
-          <button key={i} style={chipStyle((filters.intolerances || []).includes(i.toLowerCase()))}
-            onClick={() => toggleIntolerance(i.toLowerCase())}>{i}</button>
-        ))}
-      </div>
-
       {/* Result count */}
-      {section("Number of Results")}
+      {sectionLabel("Number of Results")}
       <div style={{ display: "flex", gap: 6 }}>
         {RESULT_COUNTS.map(n => (
-          <button key={n} style={chipStyle(filters.number === n)}
+          <button key={n} style={chip(filters.number === n)}
             onClick={() => set("number", n)}>{n}</button>
         ))}
       </div>
 
-      {/* Reset */}
       <button onClick={() => onChange(DEFAULT_FILTERS)} style={{
         marginTop: 16, width: "100%", padding: "10px", borderRadius: 8,
         border: "2px solid #e0d8d0", background: "none", color: "#888",
         fontSize: 13, cursor: "pointer", fontFamily: "inherit"
-      }}>Reset all filters</button>
+      }}>Reset filters</button>
     </div>
   );
 }
 
+// ─── Source badge ─────────────────────────────────────────────────────────────
+const SOURCE_COLORS = {
+  "mob.co.uk": "#1a1a1a",
+  "recipetineats.com": "#c0392b",
+  "allrecipes.com": "#e67e22",
+  "seriouseats.com": "#2980b9",
+  "bbcgoodfood.com": "#27ae60",
+  "taste.com.au": "#8e44ad",
+  "delicious.com.au": "#16a085",
+  "foodnetwork.com": "#e74c3c",
+  "jamieoliver.com": "#f39c12",
+};
+
+function getSource(url) {
+  try {
+    const domain = new URL(url).hostname.replace("www.", "");
+    return { domain, label: domain.split(".")[0].replace("recipetineats", "RecipeTin Eats").replace("bbcgoodfood", "BBC Good Food"), color: SOURCE_COLORS[domain] || "#555" };
+  } catch { return { domain: "", label: "Recipe", color: "#555" }; }
+}
+
 // ─── RecipeCard ───────────────────────────────────────────────────────────────
-function RecipeCard({ recipe, saved, onSave, onUnsave }) {
-  const calories = getCalories(recipe);
-  const domain = getDomain(recipe.sourceUrl);
-  const used = recipe.usedIngredients || [];
-  const missed = recipe.missedIngredients || [];
+function RecipeCard({ recipe, allIngredients, saved, onSave, onUnsave }) {
+  const { label, color } = getSource(recipe.link);
+  const image = recipe.pagemap?.cse_image?.[0]?.src || recipe.pagemap?.cse_thumbnail?.[0]?.src;
+  const { rating, count } = recipe.ratingData || {};
+
+  // Which of the user's ingredients appear in title+snippet
+  const text = `${recipe.title} ${recipe.snippet}`.toLowerCase();
+  const matchedIngredients = allIngredients.filter(i => text.includes(i.toLowerCase()));
 
   const badge = { background: "#f0ebe4", color: "#555", borderRadius: 20, padding: "5px 12px", fontSize: 12, fontFamily: "sans-serif" };
 
   return (
     <div style={{ background: "#fff", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 16px rgba(0,0,0,0.08)" }}>
-      {recipe.image && (
+      {image && (
         <div style={{ position: "relative", height: 220, overflow: "hidden" }}>
-          <img src={recipe.image} alt={recipe.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <img src={image} alt={recipe.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <div style={{ position: "absolute", top: 12, left: 12 }}>
+            <span style={{ background: color, color: "#fff", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, fontFamily: "sans-serif", textTransform: "capitalize" }}>{label}</span>
+          </div>
           <button onClick={saved ? onUnsave : onSave} style={{
             position: "absolute", top: 10, right: 10,
             background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)",
@@ -185,57 +186,40 @@ function RecipeCard({ recipe, saved, onSave, onUnsave }) {
           }}>{saved ? "♥" : "♡"}</button>
         </div>
       )}
+
       <div style={{ padding: "16px 18px 20px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#2c2c2c", lineHeight: 1.3 }}>{recipe.title}</div>
-          {!recipe.image && (
-            <button onClick={saved ? onUnsave : onSave} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: saved ? "#e74c3c" : "#ccc", flexShrink: 0 }}>
-              {saved ? "♥" : "♡"}
-            </button>
-          )}
-        </div>
+        {!image && (
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ background: color, color: "#fff", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, fontFamily: "sans-serif", textTransform: "capitalize" }}>{label}</span>
+            <button onClick={saved ? onUnsave : onSave} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: saved ? "#e74c3c" : "#ccc" }}>{saved ? "♥" : "♡"}</button>
+          </div>
+        )}
 
-        <StarRating score={recipe.spoonacularScore} likes={recipe.aggregateLikes} />
+        <div style={{ fontSize: 18, fontWeight: 700, color: "#2c2c2c", lineHeight: 1.3, marginBottom: 8 }}>{recipe.title}</div>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-          {recipe.readyInMinutes && <span style={badge}>⏱ {recipe.readyInMinutes} mins</span>}
-          {recipe.servings && <span style={badge}>👤 Serves {recipe.servings}</span>}
-          {calories && <span style={badge}>🔥 {calories} cal</span>}
-          {domain && <span style={{ ...badge, background: "#faf8f4", color: "#888" }}>🔗 {domain}</span>}
-        </div>
+        <StarRating rating={rating} count={count} />
 
-        {used.length > 0 && (
-          <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 13, color: "#777", lineHeight: 1.65, marginBottom: 14 }}>{recipe.snippet}</div>
+
+        {/* Fridge ingredient matches */}
+        {matchedIngredients.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#27ae60", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
-              ✓ Uses from your fridge ({used.length})
+              ✓ Mentions your ingredients ({matchedIngredients.length})
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-              {used.map(i => (
-                <span key={i.id} style={{ background: "#e8f8ee", color: "#1e7e34", borderRadius: 20, padding: "3px 10px", fontSize: 12 }}>{i.name}</span>
-              ))}
-            </div>
-          </div>
-        )}
-        {missed.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#e67e22", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
-              + You'll also need ({missed.length})
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-              {missed.map(i => (
-                <span key={i.id} style={{ background: "#fef3e2", color: "#b7590a", borderRadius: 20, padding: "3px 10px", fontSize: 12 }}>{i.name}</span>
+              {matchedIngredients.map(i => (
+                <span key={i} style={{ background: "#e8f8ee", color: "#1e7e34", borderRadius: 20, padding: "3px 10px", fontSize: 12 }}>{i}</span>
               ))}
             </div>
           </div>
         )}
 
-        {recipe.sourceUrl && (
-          <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer" style={{
-            display: "block", textAlign: "center", padding: "14px", borderRadius: 10,
-            background: "#c0392b", color: "#fff", fontSize: 15, fontWeight: 700,
-            textDecoration: "none", fontFamily: "Georgia, serif"
-          }}>View Full Recipe ↗</a>
-        )}
+        <a href={recipe.link} target="_blank" rel="noopener noreferrer" style={{
+          display: "block", textAlign: "center", padding: "14px", borderRadius: 10,
+          background: color, color: "#fff", fontSize: 15, fontWeight: 700,
+          textDecoration: "none", fontFamily: "Georgia, serif"
+        }}>View Recipe ↗</a>
       </div>
     </div>
   );
@@ -258,12 +242,10 @@ export default function App() {
 
   const addIngredient = (val) => {
     const t = val.trim().toLowerCase();
-    if (t && !ingredients.find(i => i.name === t))
-      setIngredients(p => [...p, { name: t, starred: false }]);
+    if (t && !ingredients.includes(t)) setIngredients(p => [...p, t]);
     setInput("");
   };
-  const toggleStar = (name) => setIngredients(p => p.map(i => i.name === name ? { ...i, starred: !i.starred } : i));
-  const removeIngredient = (name) => setIngredients(p => p.filter(i => i.name !== name));
+  const removeIngredient = (name) => setIngredients(p => p.filter(i => i !== name));
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" || e.key === ",") { e.preventDefault(); if (input.trim()) addIngredient(input); }
@@ -273,27 +255,23 @@ export default function App() {
   const search = async () => {
     if (!ingredients.length) return;
     setLoading(true); setError(null); setResults(null);
-    const starred = ingredients.filter(i => i.starred).map(i => i.name);
-    const available = ingredients.filter(i => !i.starred).map(i => i.name);
     try {
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ starred, available, filters })
+        body: JSON.stringify({ ingredients, filters })
       });
       if (!res.ok) throw new Error("Search failed");
       const data = await res.json();
       setResults(data.results || []);
     } catch {
       setError("Search failed — please try again.");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  const saveRecipe = (recipe) => { const u = [recipe, ...saved.filter(r => r.id !== recipe.id)]; setSaved(u); persistSaved(u); };
-  const unsaveRecipe = (id) => { const u = saved.filter(r => r.id !== id); setSaved(u); persistSaved(u); };
-  const isSaved = (id) => saved.some(r => r.id === id);
+  const saveRecipe = (r) => { const u = [r, ...saved.filter(s => s.link !== r.link)]; setSaved(u); persistSaved(u); };
+  const unsaveRecipe = (link) => { const u = saved.filter(s => s.link !== link); setSaved(u); persistSaved(u); };
+  const isSaved = (link) => saved.some(s => s.link === link);
   const activeFilterCount = countActiveFilters(filters);
 
   return (
@@ -318,7 +296,6 @@ export default function App() {
 
       {tab === "search" && (
         <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px" }}>
-          {/* Ingredient input */}
           <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#666", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
             Your Ingredients
           </label>
@@ -327,16 +304,14 @@ export default function App() {
             padding: "12px 14px", display: "flex", flexWrap: "wrap", gap: 8,
             cursor: "text", minHeight: 60, alignItems: "center"
           }}>
-            {ingredients.map(({ name, starred }) => (
+            {ingredients.map(name => (
               <span key={name} style={{
-                background: starred ? "#2c2c2c" : "#fff", color: starred ? "#fff" : "#444",
-                border: `2px solid ${starred ? "#2c2c2c" : "#e0d8d0"}`,
-                borderRadius: 20, padding: "4px 6px 4px 10px",
-                fontSize: 14, display: "flex", alignItems: "center", gap: 4, transition: "all 0.15s"
+                background: "#fff", color: "#444", border: "2px solid #e0d8d0",
+                borderRadius: 20, padding: "4px 10px 4px 12px",
+                fontSize: 14, display: "flex", alignItems: "center", gap: 6
               }}>
-                <button onClick={() => toggleStar(name)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0 2px", fontSize: 14, color: starred ? "#f59e0b" : "#ccc" }}>★</button>
                 {name}
-                <button onClick={() => removeIngredient(name)} style={{ background: "none", border: "none", color: starred ? "rgba(255,255,255,0.5)" : "#bbb", cursor: "pointer", padding: "0 4px 0 2px", fontSize: 16, lineHeight: 1 }}>×</button>
+                <button onClick={() => removeIngredient(name)} style={{ background: "none", border: "none", color: "#bbb", cursor: "pointer", padding: "0 2px", fontSize: 16, lineHeight: 1 }}>×</button>
               </span>
             ))}
             <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
@@ -346,10 +321,10 @@ export default function App() {
             />
           </div>
           <div style={{ fontSize: 12, color: "#aaa", marginTop: 6 }}>
-            Dump your whole fridge in. Tap <span style={{ color: "#f59e0b" }}>★</span> to prioritise ingredients.
+            Dump your whole fridge in. Recipes are ranked by how many of your ingredients they use.
           </div>
 
-          {/* Filters toggle */}
+          {/* Filters */}
           <button onClick={() => setFiltersOpen(o => !o)} style={{
             marginTop: 12, padding: "10px 18px", borderRadius: 10,
             border: `2px solid ${activeFilterCount > 0 ? "#c0392b" : "#e0d8d0"}`,
@@ -361,17 +336,11 @@ export default function App() {
             <span>{filtersOpen ? "▲" : "▼"}</span>
             Filters
             {activeFilterCount > 0 && (
-              <span style={{ background: "#c0392b", color: "#fff", borderRadius: 20, padding: "1px 8px", fontSize: 11, fontWeight: 700 }}>
-                {activeFilterCount}
-              </span>
+              <span style={{ background: "#c0392b", color: "#fff", borderRadius: 20, padding: "1px 8px", fontSize: 11, fontWeight: 700 }}>{activeFilterCount}</span>
             )}
           </button>
 
-          {filtersOpen && (
-            <div style={{ marginTop: 8 }}>
-              <FilterPanel filters={filters} onChange={setFilters} />
-            </div>
-          )}
+          {filtersOpen && <div style={{ marginTop: 8 }}><FilterPanel filters={filters} onChange={setFilters} /></div>}
 
           <button onClick={search} disabled={loading || !ingredients.length} style={{
             marginTop: 14, width: "100%", padding: 16,
@@ -386,16 +355,16 @@ export default function App() {
             <div style={{ marginTop: 28 }}>
               {results.length === 0
                 ? <div style={{ textAlign: "center", padding: 40, color: "#888" }}>
-                    No recipes found — try removing some filters or adding more ingredients
+                    No recipes found — try adjusting your filters or adding more ingredients
                   </div>
                 : <>
                     <div style={{ fontSize: 13, color: "#999", marginBottom: 16 }}>
-                      {results.length} recipes · ranked by how many of your ingredients they use
+                      {results.length} recipes · ranked by ingredient match
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                      {results.map(r => (
-                        <RecipeCard key={r.id} recipe={r} saved={isSaved(r.id)}
-                          onSave={() => saveRecipe(r)} onUnsave={() => unsaveRecipe(r.id)} />
+                      {results.map((r, i) => (
+                        <RecipeCard key={i} recipe={r} allIngredients={ingredients}
+                          saved={isSaved(r.link)} onSave={() => saveRecipe(r)} onUnsave={() => unsaveRecipe(r.link)} />
                       ))}
                     </div>
                   </>
@@ -414,8 +383,9 @@ export default function App() {
                 <div style={{ fontSize: 14, color: "#aaa" }}>Search and tap the heart to save recipes</div>
               </div>
             : <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                {saved.map(r => (
-                  <RecipeCard key={r.id} recipe={r} saved={true} onUnsave={() => unsaveRecipe(r.id)} />
+                {saved.map((r, i) => (
+                  <RecipeCard key={i} recipe={r} allIngredients={[]}
+                    saved={true} onUnsave={() => unsaveRecipe(r.link)} />
                 ))}
               </div>
           }
