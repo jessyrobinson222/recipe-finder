@@ -113,12 +113,12 @@ export default async function handler(req, res) {
 
     // Filter: only show recipes with real ratings that meet quality threshold
     const minRating = filters.minRating ?? 4.5;
-    const minReviews = filters.minReviews ?? 100;
 
     let results = items.filter(item => {
-      if (!item.ratingData) return false; // no rating data, skip
-      return item.ratingData.rating >= minRating &&
-             item.ratingData.count >= minReviews;
+      if (!item.ratingData) return false;
+      const { rating, count } = item.ratingData;
+      // Higher bar for well-reviewed recipes, lower bar for smaller sites
+      return count >= 100 ? rating >= minRating : rating >= 4.0;
     });
 
     // If strict filtering returns nothing, relax review count only

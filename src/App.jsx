@@ -24,14 +24,13 @@ const COOK_TIMES = [
 const RESULT_COUNTS = [5, 10, 15, 20];
 const DEFAULT_FILTERS = {
   cuisine: null, type: null, maxReadyTime: null,
-  number: 10, minRating: 4.5, minReviews: 100,
+  number: 10, minRating: 4.5, minReviews: 0,
 };
 
 function countActiveFilters(f) {
   return [f.cuisine, f.type, f.maxReadyTime].filter(Boolean).length +
     (f.number !== 10 ? 1 : 0) +
-    (f.minRating !== 4.5 ? 1 : 0) +
-    (f.minReviews !== 100 ? 1 : 0);
+    (f.minRating !== 4.5 ? 1 : 0);
 }
 
 // ─── Stars display ────────────────────────────────────────────────────────────
@@ -81,15 +80,6 @@ function FilterPanel({ filters, onChange }) {
         {[4.0, 4.3, 4.5, 4.7, 4.9].map(r => (
           <button key={r} style={chip(filters.minRating === r)}
             onClick={() => set("minRating", r)}>{"★".repeat(Math.floor(r))} {r.toFixed(1)}+</button>
-        ))}
-      </div>
-
-      {/* Min reviews */}
-      {sectionLabel("Minimum Reviews")}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {[10, 50, 100, 500, 1000].map(n => (
-          <button key={n} style={chip(filters.minReviews === n)}
-            onClick={() => set("minReviews", n)}>{n.toLocaleString()}+</button>
         ))}
       </div>
 
