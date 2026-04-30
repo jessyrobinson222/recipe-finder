@@ -1,8 +1,15 @@
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const { starred, available, filters = {} } = req.body;
-  if (!starred?.length && !available?.length)
+  // Vercel doesn't always auto-parse JSON bodies — handle both cases
+  let body = req.body;
+  if (typeof body === "string") {
+    try { body = JSON.parse(body); } catch { body = {}; }
+  }
+  body = body || {};
+
+  const { starred = [], available = [], filters = {} } = body;
+  if (!starred.length && !available.length)
     return res.status(400).json({ error: "No ingredients provided" });
 
   const key = process.env.SPOONACULAR_API_KEY;
