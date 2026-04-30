@@ -7,11 +7,29 @@ const PANTRY_STAPLES = new Set([
   "chili", "cornstarch", "baking soda", "baking powder", "honey", "mustard"
 ]);
 
-// Pick the most interesting ingredients for the search query
-function pickQueryIngredients(ingredients, max = 3) {
+// Build varied ingredient combos from the fridge list — no ingredient is
+// privileged, just spread pairs across the full list for maximum variety
+function buildQueryCombos(ingredients, maxCombos = 5) {
   const interesting = ingredients.filter(i => !PANTRY_STAPLES.has(i.toLowerCase()));
-  // Prefer proteins and vegetables over fruits for savoury searches
-  return (interesting.length > 0 ? interesting : ingredients).slice(0, max);
+  const pool = interesting.length > 0 ? interesting : ingredients;
+  if (pool.length === 0) return [];
+
+  const combos = new Set();
+
+  // Spread pairs evenly across the list rather than anchoring on first item
+  const step = Math.max(1, Math.floor(pool.length / maxCombos));
+  for (let i = 0; i < pool.length - 1 && combos.size < maxCombos; i += step) {
+    const j = (i + Math.ceil(pool.length / 3)) % pool.length;
+    if (i !== j) combos.add(`${pool[i]} ${pool[j]} recipe`);
+  }
+
+  // Fill remaining slots with single-ingredient searches from different
+  // parts of the list if we don't have enough pairs
+  for (let i = 0; i < pool.length && combos.size < maxCombos; i += 2) {
+    combos.add(`${pool[i]} recipe`);
+  }
+
+  return [...combos].slice(0, maxCombos);
 }
 
 // Extract real star rating + review count from Google's pagemap schema data
@@ -128,7 +146,6 @@ export default async function handler(req, res) {
     });
 
     if (filters.maxReadyTime) {
-      // Can't filter cook time from CSE data — surface a note instead
       results = results.map(r => ({ ...r, cookTimeNote: `Filter for ${filters.maxReadyTime} min recipes applied in search` }));
     }
 
