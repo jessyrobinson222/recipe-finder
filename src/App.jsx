@@ -43,6 +43,28 @@ function getDomain(url) {
   try { return new URL(url).hostname.replace("www.", ""); }
   catch { return null; }
 }
+// Spoonacular score is 0–100; convert to 0–5 stars
+function getStars(score) {
+  return score ? Math.round((score / 20) * 2) / 2 : null; // nearest 0.5
+}
+function StarRating({ score, likes }) {
+  const stars = getStars(score);
+  if (!stars) return null;
+  const full = Math.floor(stars);
+  const half = stars % 1 >= 0.5;
+  const empty = 5 - full - (half ? 1 : 0);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 12 }}>
+      <span style={{ color: "#f59e0b", fontSize: 15, letterSpacing: 1 }}>
+        {"★".repeat(full)}{half ? "½" : ""}{"☆".repeat(empty)}
+      </span>
+      <span style={{ fontSize: 13, color: "#888", fontFamily: "sans-serif" }}>
+        {stars.toFixed(1)}
+        {likes > 0 && <span style={{ marginLeft: 5 }}>· {likes.toLocaleString()} likes</span>}
+      </span>
+    </div>
+  );
+}
 function countActiveFilters(f) {
   return [f.diet, f.cuisine, f.type, f.maxReadyTime].filter(Boolean).length
     + (f.intolerances?.length || 0)
@@ -164,7 +186,7 @@ function RecipeCard({ recipe, saved, onSave, onUnsave }) {
         </div>
       )}
       <div style={{ padding: "16px 18px 20px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: "#2c2c2c", lineHeight: 1.3 }}>{recipe.title}</div>
           {!recipe.image && (
             <button onClick={saved ? onUnsave : onSave} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: saved ? "#e74c3c" : "#ccc", flexShrink: 0 }}>
@@ -172,6 +194,8 @@ function RecipeCard({ recipe, saved, onSave, onUnsave }) {
             </button>
           )}
         </div>
+
+        <StarRating score={recipe.spoonacularScore} likes={recipe.aggregateLikes} />
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           {recipe.readyInMinutes && <span style={badge}>⏱ {recipe.readyInMinutes} mins</span>}
